@@ -1,6 +1,7 @@
 package com.security.Security.SecurityConfig;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -8,9 +9,12 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -26,23 +30,61 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests((requests) -> {
-            ((AuthorizeHttpRequestsConfigurer.AuthorizedUrl) requests.anyRequest()).authenticated();
-        });
+        http.authorizeHttpRequests(authorizeRequests ->
+                authorizeRequests
+
+                        .requestMatchers("/signin").permitAll()
+                        .requestMatchers("/register").permitAll()
+                        .anyRequest().authenticated()
+        );
         http.httpBasic(Customizer.withDefaults());
+        http.csrf(csrf -> csrf.disable());
+
+
+        // Stateless session management
+//        http.sessionManagement(session ->
+//                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+//        );
+
+        // Disable CSRF (typically enabled by default for forms)
+       // http.csrf(csrf -> csrf.disable());
+
+        // Optionally, you can add more security configurations, such as configuring login, logout, etc.
+
         return http.build();
     }
 
     @Bean
-    public UserDetailsService userDetailsService() {
-        UserDetails user1 = User.withUsername("user1").password("{noop}password1").roles("USER").build();
-        UserDetails admin = User.withUsername("admin").password("{noop}admin1").roles("ADMIN").build();
+    public UserDetailsService userDetailsService(DataSource dataSource) {
+        return new JdbcUserDetailsManager(dataSource);
+    }
 
-        JdbcUserDetailsManager jdbcUserDetailsManager = new JdbcUserDetailsManager(dataSource);
+    @Bean
+    public CommandLineRunner initData(UserDetailsService userDetailsService) {
+        return args -> {
+            JdbcUserDetailsManager manager = (JdbcUserDetailsManager) userDetailsService;
 
-        jdbcUserDetailsManager.createUser(user1);
-        jdbcUserDetailsManager.createUser(admin);
+            if (!manager.userExists("user1")) {
+                UserDetails user1 = User.withUsername("user1")
+                        .password(passwordEncoder().encode("password1"))
+                        .roles("USER")
+                        .build();
+                manager.createUser(user1);
+            }
 
-        return jdbcUserDetailsManager;
+            if (!manager.userExists("admin")) {
+                UserDetails admin = User.withUsername("admin")
+                        .password(passwordEncoder().encode("admin1"))
+                        .roles("ADMIN")
+                        .build();
+                manager.createUser(admin);
+            }
+        };
+    }
+
+
+    @Bean
+    public PasswordEncoder passwordEncoder(){
+            return new BCryptPasswordEncoder();
     }
 }
