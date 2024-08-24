@@ -1,6 +1,5 @@
 package com.security.Security.Jwt;
 
-
 import java.util.List;
 
 public class LoginResponse {
