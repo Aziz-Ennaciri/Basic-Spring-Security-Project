@@ -42,35 +42,33 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests(authorizeRequests ->
-                authorizeRequests.requestMatchers("/h2-console/**").permitAll()
-                        .requestMatchers("/signin").permitAll()
-                        .anyRequest().authenticated());
-        http.sessionManagement(
-                session ->
-                        session.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS)
-        );
-        http.exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler));
-        //http.httpBasic(withDefaults());
-        http.headers(headers -> headers
-                .frameOptions(frameOptions -> frameOptions
-                        .sameOrigin()
+     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
+                        .requestMatchers("/signin").permitAll() // Allow unauthenticated access to /signin
+                        .anyRequest().authenticated() // Require authentication for all other requests
                 )
-        );
-        http.csrf(csrf -> csrf.disable());
-        http.addFilterBefore(authenticationJwtTokenFilter(),
-                UsernamePasswordAuthenticationFilter.class);
-
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint(unauthorizedHandler)
+                )
+                .addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
+
     @Bean
     public UserDetailsService userDetailsService(DataSource dataSource) {
-        return new JdbcUserDetailsManager(dataSource);
+        JdbcUserDetailsManager manager = new JdbcUserDetailsManager(dataSource);
+        manager.setUsersByUsernameQuery("select username, password, enabled from my_users where username = ?");
+        manager.setAuthoritiesByUsernameQuery("select username, authority from my_authorities where username = ?");
+        return manager;
     }
+
 
     @Bean
     public CommandLineRunner initData(UserDetailsService userDetailsService) {
